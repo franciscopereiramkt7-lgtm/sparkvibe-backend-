@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+
+// ✅ Caminhos relativos corretos
 import { openai } from "../../../lib/openai";
-import { supabaseAdmin } from "../../../lib/server";
+import { createClient as createServerClient } from "../../../lib/server";
 
 export async function POST(req: Request) {
   try {
@@ -28,7 +30,7 @@ export async function POST(req: Request) {
     const raw = completion.choices?.[0]?.message?.content || "{}";
     const titles = JSON.parse(raw).titles || [];
 
-    const supabase = createClient(
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
@@ -47,3 +49,4 @@ export async function POST(req: Request) {
     );
   }
 }
+
