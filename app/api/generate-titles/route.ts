@@ -1,31 +1,49 @@
 import { NextResponse } from "next/server";
-import { openai } from "@/lib/openai";
-import { createClient } from "@/lib/server";
+import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
+import { openai } from "../../../lib/openai";
+import { supabaseAdmin } from "../../../lib/server";
 
 export async function POST(req: Request) {
   try {
-    const { input, user_id } = await req.json();
-    if (!input) return NextResponse.json({ error: "Missing input" }, { status: 400 });
+    const { input } = await req.json();
 
-    const ai = await openai.chat.completions.create({
+    if (!input || input.trim().length < 3) {
+      return NextResponse.json(
+        { error: "Input demasiado curto para gerar títulos." },
+        { status: 400 }
+      );
+    }
+
+    const prompt = `Gera 5 títulos curtos, virais e criativos para vídeos com o tema: "${input}".
+    Responde em formato JSON: { "titles": ["...", "...", "..."] }`;
+
+    const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: `Generate 3 viral titles for: ${input}` }],
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.9,
+      max_tokens: 200,
     });
 
-    const raw = ai.choices[0]?.message?.content ?? "";
-    const titles = raw.split("\n").filter(Boolean);
+    const raw = completion.choices?.[0]?.message?.content || "{}";
+    const titles = JSON.parse(raw).titles || [];
 
-    const supabase = createClient();
-    await supabase.from("generation_logs").insert({
-      user_id: user_id ?? null,
-      input,
-      output: JSON.stringify(titles),
-      model_used: "gpt-3.5-turbo",
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    await supabase.from("generated_titles").insert({
+      input_text: input,
+      titles,
     });
 
     return NextResponse.json({ titles });
-  } catch (err) {
-    console.error("❌ Error generating titles:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  } catch (error) {
+    console.error("Erro na geração:", error);
+    return NextResponse.json(
+      { error: "Falha na geração de títulos." },
+      { status: 500 }
+    );
   }
 }
